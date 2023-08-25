@@ -23,6 +23,7 @@ func main() {
 		return
 	}
 	defer webcam.Close()
+
 	// set camera's capture settings
 	webcam.Set(gocv.VideoCaptureFPS, targetFrameRate)
 	webcam.Set(gocv.VideoCaptureFrameHeight, targetFrameHeight)
@@ -50,13 +51,14 @@ func main() {
 	defer background.Close()
 
 	// Load background video background.mkv
-	backgroundVideoPath := "/home/marcus/go/src/master_go_programming/application_structure/background.mp4" // Specify the path to your background image
+	backgroundVideoPath := "/home/marcus/go/src/master_go_programming/application_structure/background.mp4" // Specify the path to your background video
 	backgroundVideo, err := gocv.VideoCaptureFile(backgroundVideoPath)
 	if err != nil {
 		fmt.Printf("Error opening video file: %v\n", err)
 		return
 	}
 	defer backgroundVideo.Close()
+
 	videoFrame := gocv.NewMat()
 	defer videoFrame.Close()
 
@@ -104,18 +106,20 @@ func main() {
 
 		gocv.Resize(videoFrame, &videoFrame, image.Point{img.Cols(), img.Rows()}, 0, 0, gocv.InterpolationDefault)
 
-		// todo need to record raw stream to file
-		//rawWriter.Write(img)
+		// record raw stream to file
+		rawWriter.Write(img)
 
-		// todo need to save webm transparency file?
-
-		//can I add another video as background?
+		// todo need to save webm transparency video file?
 
 		// add green screen mask effect to stream frame, exposing background
-		addGreenScreenMask(&img, &videoFrame)
+		fxImg := gocv.NewMat()
+		defer fxImg.Close()
 
-		// write fx image to disk
-		//fxWriter.Write(fxImg)
+		addGreenScreenMask(&img, &videoFrame, &fxImg)
+
+		// write fx video frame
+		fxWriter.Write(fxImg)
+		fxImg.Close()
 
 		// ESC to shutdown program
 		if Window.WaitKey(1) == 27 {
@@ -124,11 +128,11 @@ func main() {
 	}
 }
 
-func addGreenScreenMask(sourceImage *gocv.Mat, newBackground *gocv.Mat) {
+func addGreenScreenMask(sourceImage *gocv.Mat, newBackground *gocv.Mat, result *gocv.Mat) {
 	// create capture window
 
 	// Define the lower and upper bounds for the green color in HSV
-	lowerGreen := gocv.NewScalar(30, 6, 45, 0)
+	lowerGreen := gocv.NewScalar(22, 6, 35, 0)
 	upperGreen := gocv.NewScalar(85, 255, 255, 0)
 
 	// Convert the image to the HSV color space for green screening
@@ -151,26 +155,16 @@ func addGreenScreenMask(sourceImage *gocv.Mat, newBackground *gocv.Mat) {
 	defer invertedMask.Close()
 
 	gocv.BitwiseNot(mask, &invertedMask)
-	//saveFileWithAlpha(sourceImage, &invertedMask)
-
-	result := gocv.NewMat()
+	saveFileWithAlpha(sourceImage, &invertedMask)
 
 	// Create a result image by bitwise-AND between the original image and the mask
-	gocv.BitwiseAndWithMask(*sourceImage, *sourceImage, &result, invertedMask)
+	gocv.BitwiseAndWithMask(*sourceImage, *sourceImage, result, invertedMask)
 
 	// Add the masked frame and background
-	gocv.Add(result, backgroundResult, &result)
+	gocv.Add(*result, backgroundResult, result)
 
 	// Update window
-	Window.IMShow(result)
-
-	// close files to prevent memory leaks
-	hsvImg.Close()
-	mask.Close()
-	backgroundResult.Close()
-	invertedMask.Close()
-	result.Close()
-
+	Window.IMShow(*result)
 }
 
 func saveFileWithAlpha(sourceImage *gocv.Mat, mask *gocv.Mat) bool {
