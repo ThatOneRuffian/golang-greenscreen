@@ -8,6 +8,7 @@ import (
 )
 
 var Window = gocv.NewWindow("Feed Preview")
+var frameCount = 0
 
 func main() {
 	defer Window.Close()
@@ -16,6 +17,7 @@ func main() {
 	targetFrameRate := 24.0
 	targetFrameHeight := 480.0
 	targetFframeWidth := 864.0
+
 	webcam, err := gocv.VideoCaptureDeviceWithAPI(deviceID, gocv.VideoCaptureGstreamer)
 	if err != nil {
 		fmt.Printf("Error opening video capture device: %v\n", deviceID)
@@ -46,12 +48,12 @@ func main() {
 	fmt.Println(img.Cols(), img.Rows())
 
 	// Load the background image
-	backgroundPath := "/home/marcus/go/src/master_go_programming/application_structure/background.jpg" // Specify the path to your background image
+	backgroundPath := "./background.jpg" // Specify the path to your background image
 	background := gocv.IMRead(backgroundPath, gocv.IMReadColor)
 	defer background.Close()
 
 	// Load background video background.mkv
-	backgroundVideoPath := "/home/marcus/go/src/master_go_programming/application_structure/background.mp4" // Specify the path to your background video
+	backgroundVideoPath := "./background.mp4" // Specify the path to your background video
 	backgroundVideo, err := gocv.VideoCaptureFile(backgroundVideoPath)
 	if err != nil {
 		fmt.Printf("Error opening video file: %v\n", err)
@@ -173,6 +175,7 @@ func saveFileWithAlpha(sourceImage *gocv.Mat, mask *gocv.Mat) bool {
 
 	// Create a new image with an alpha channel (BGRA)
 	rgbaImage := gocv.NewMat()
+	defer rgbaImage.Close()
 	gocv.CvtColor(*sourceImage, &rgbaImage, gocv.ColorBGRToBGRA)
 
 	// Create the alpha channel from the mask
@@ -186,13 +189,20 @@ func saveFileWithAlpha(sourceImage *gocv.Mat, mask *gocv.Mat) bool {
 	channels := gocv.Split(rgbaImage)
 
 	// Set the alpha channel in the BGRA image
+	defer channels[0].Close()
+	defer channels[1].Close()
+	defer channels[2].Close()
+	channels[3].Close() // Close the original alpha channel from rgbaImage
 	channels[3] = alphaChannel
 
 	// Merge the BGRA components back into the final image
-	gocv.Merge(channels, &rgbaImage)
-
-	alphaChannel.Close()
+	resultImage := gocv.NewMat()
+	defer resultImage.Close()
+	gocv.Merge(channels, &resultImage)
 
 	// Save the transparent image as a PNG file
-	return gocv.IMWrite("output_image.png", rgbaImage)
+	fileName := fmt.Sprintf("./output/output_image_%d.png", frameCount)
+	frameCount += 1
+
+	return gocv.IMWrite(fileName, resultImage)
 }
