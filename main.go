@@ -157,7 +157,7 @@ func addGreenScreenMask(sourceImage *gocv.Mat, newBackground *gocv.Mat, result *
 	defer invertedMask.Close()
 
 	gocv.BitwiseNot(mask, &invertedMask)
-	saveFileWithAlpha(sourceImage, &invertedMask)
+	saveFrameWithAlpha(sourceImage, &invertedMask)
 
 	// Create a result image by bitwise-AND between the original image and the mask
 	gocv.BitwiseAndWithMask(*sourceImage, *sourceImage, result, invertedMask)
@@ -169,7 +169,7 @@ func addGreenScreenMask(sourceImage *gocv.Mat, newBackground *gocv.Mat, result *
 	Window.IMShow(*result)
 }
 
-func saveFileWithAlpha(sourceImage *gocv.Mat, mask *gocv.Mat) bool {
+func saveFrameWithAlpha(sourceImage *gocv.Mat, mask *gocv.Mat) bool {
 	// Ensure mask has only 0 and 255 values
 	gocv.Threshold(*mask, mask, 128, 255, gocv.ThresholdBinary)
 
