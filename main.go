@@ -99,7 +99,12 @@ func main() {
 
 		// capture next video frame from file
 		if ok := backgroundVideo.Read(&videoFrame); !ok {
-			break
+			// attempt to set video file to first frame for EOF condition
+			backgroundVideo.Set(gocv.VideoCapturePosFrames, 0)
+			if ok := backgroundVideo.Read(&videoFrame); !ok {
+				fmt.Println("An unkown error has occured while reading the provided background video.")
+				break
+			}
 		}
 
 		if videoFrame.Empty() {
