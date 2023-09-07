@@ -13,8 +13,8 @@ func main() {
 	defer Window.Close()
 
 	// --------- init media output dir
-	if !initOutputDir() {
-		panic("Unable to Save Data to Output Directory")
+	if err := initOutputDir(); err != nil {
+		panic(err)
 	}
 
 	// --------- init webcam

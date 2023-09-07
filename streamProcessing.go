@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -11,7 +12,7 @@ var frameStillCounter = 0
 var defaultOutputDir = "./output"
 var defaultImageSequenceDir = fmt.Sprintf("%s/image_sequence", defaultOutputDir)
 
-func initOutputDir() bool {
+func initOutputDir() error {
 	// check if output dir exists
 	_, err := os.Stat(defaultImageSequenceDir)
 
@@ -21,18 +22,17 @@ func initOutputDir() bool {
 		case os.IsNotExist(err): // output dir does not exist
 			fmt.Printf("Createing Output Dir: %s\n", defaultImageSequenceDir)
 			if createErr := os.MkdirAll(defaultImageSequenceDir, os.FileMode(0744)); createErr != nil {
-				fmt.Println("Could Not Create Output Directory. Check Program Permissions. Cannot Save Masked Image Sequence.")
-				return false
+				return errors.New("Could Not Create Output Directory. Check Program Permissions. Cannot Save Masked Image Sequence.")
+
 			}
-			return true
+			return nil
 		case os.IsPermission(err): // no read access
 			fmt.Println("Unable to Read Output Dir Incorrect Permissions.")
 			fmt.Println(err)
-			return false
+			return errors.New("Could Not Create Output Directory. Check Program Permissions. Cannot Save Masked Image Sequence.")
 
 		default:
-			fmt.Println("Unknown Error Attempting to Read Output Dir, Continuing:", err)
-			return false
+			return errors.New(fmt.Sprintf("Unknown Error Attempting to Read Output Dir, Continuing: %v", err))
 		}
 	}
 
@@ -41,11 +41,10 @@ func initOutputDir() bool {
 	fileInfo.Close()
 
 	if permErr != nil {
-		fmt.Printf("Output Directory Does Not Have the Write Permission to Write Output Media.\n%v", permErr)
-		return false
+		return errors.New(fmt.Sprintf("Output Directory Does Not Have Required Write Permissions. Unable to Write Output Media.\n%v", permErr))
 	}
 
-	return true
+	return nil
 }
 
 func saveFrameWithMaskAlpha(sourceImage *gocv.Mat, mask *gocv.Mat) bool {
