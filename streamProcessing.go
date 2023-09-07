@@ -11,8 +11,41 @@ var frameStillCounter = 0
 var defaultOutputDir = "./output"
 var defaultImageSequenceDir = fmt.Sprintf("%s/image_sequence", defaultOutputDir)
 
-func initOutputDir() {
+func initOutputDir() bool {
+	// check if output dir exists
+	_, err := os.Stat(defaultImageSequenceDir)
 
+	if err != nil {
+		// test read/execute permissions
+		switch {
+		case os.IsNotExist(err): // output dir does not exist
+			fmt.Printf("Createing Output Dir: %s\n", defaultImageSequenceDir)
+			if createErr := os.MkdirAll(defaultImageSequenceDir, os.FileMode(0744)); createErr != nil {
+				fmt.Println("Could Not Create Output Directory. Check Program Permissions. Cannot Save Masked Image Sequence.")
+				return false
+			}
+			return true
+		case os.IsPermission(err): // no read access
+			fmt.Println("Unable to Read Output Dir Incorrect Permissions.")
+			fmt.Println(err)
+			return false
+
+		default:
+			fmt.Println("Unknown Error Attempting to Read Output Dir, Continuing:", err)
+			return false
+		}
+	}
+
+	// test write permission
+	fileInfo, permErr := os.Create(fmt.Sprintf("%v/dummyfile.tmp", defaultImageSequenceDir))
+	fileInfo.Close()
+
+	if permErr != nil {
+		fmt.Printf("Output Directory Does Not Have the Write Permission to Write Output Media.\n%v", permErr)
+		return false
+	}
+
+	return true
 }
 
 func saveFrameWithMaskAlpha(sourceImage *gocv.Mat, mask *gocv.Mat) bool {
@@ -51,36 +84,7 @@ func saveFrameWithMaskAlpha(sourceImage *gocv.Mat, mask *gocv.Mat) bool {
 	// Save the transparent image as a PNG file
 	// and attempt to determine issues with write
 	if !gocv.IMWrite(fileName, resultImage) {
-		_, err := os.Stat(defaultImageSequenceDir)
-
-		// if error reading dir
-		if err != nil {
-			if os.IsNotExist(err) {
-				fmt.Printf("Createing Output Dir: %s\n", defaultImageSequenceDir)
-
-				if createErr := os.MkdirAll(defaultImageSequenceDir, os.FileMode(0744)); createErr != nil {
-					fmt.Println(createErr)
-					fmt.Println("Could Not Create Output Directory. Check Program Permissions. Cannot Save Masked Image Sequence.")
-					return false
-				} else if !gocv.IMWrite(fileName, resultImage) { // retry after directory creation
-					fmt.Println("Unknown Issue With Writing Masked Image Sequence.")
-					return false
-				}
-				return true
-			} else if os.IsPermission(err) {
-				fmt.Println("Unable to Write to Output Dir Incorrect Permissions.")
-				return false
-			} else {
-				fmt.Println("Unknown Error Attempting to Read Output Dir, Continuing:", err)
-				return false
-			}
-		}
-
-		// check case of read-only access
-		_, permErr := os.OpenFile(fmt.Sprintf("%s/dummyfile", defaultImageSequenceDir), os.O_RDWR, 0666)
-		if permErr != nil {
-			fmt.Printf("Output Directory Does Not Have the Correct Permission to Write Masked Image Sequence.\n")
-		}
+		fmt.Println("Unknown Issue While Saving Masked Frames to Output Dir.")
 	}
 	return true
 }

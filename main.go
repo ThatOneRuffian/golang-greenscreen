@@ -11,6 +11,12 @@ var Window = gocv.NewWindow("Feed Preview")
 
 func main() {
 	defer Window.Close()
+
+	// --------- init media output dir
+	if !initOutputDir() {
+		panic("Unable to Save Data to Output Directory")
+	}
+
 	// --------- init webcam
 	camera1 := captureDevice{
 		deviceID:      0,
@@ -23,6 +29,7 @@ func main() {
 	}
 	defer camera1.captureDevice.Close()
 
+	// --------- init background image/video
 	// Load the background image
 	backgroundPath := "./background.jpg" // Specify the path to your background image
 	background := gocv.IMRead(backgroundPath, gocv.IMReadColor)
@@ -43,6 +50,7 @@ func main() {
 	backgroundFrame := gocv.NewMat()
 	defer backgroundFrame.Close()
 
+	// ------------ init stream writers
 	// create writer for raw stream
 	// todo the output dir should be made by here...
 	rawSaveFile := fmt.Sprintf("%s/stream_raw_output.mp4", defaultOutputDir)
@@ -64,6 +72,7 @@ func main() {
 	}
 	defer fxWriter.Close()
 
+	// ------------ main display window loop
 	for {
 		// capture next video frame from webcam
 		if !camera1.getNextFrame() {
