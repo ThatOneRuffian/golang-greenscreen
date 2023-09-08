@@ -7,15 +7,17 @@ import (
 	"gocv.io/x/gocv"
 )
 
-var Window = gocv.NewWindow("Feed Preview")
-
-func main() {
+func init() {
 	defer Window.Close()
 
+	// create slice of capture devices with active/inactive status for GUI
 	// --------- init media output dir
 	if err := initOutputDir(); err != nil {
 		panic(err)
 	}
+}
+
+func main() {
 
 	// --------- init webcam
 	camera1 := captureDevice{
@@ -25,30 +27,37 @@ func main() {
 		captureWidth:  864.0,
 	}
 	if err := camera1.initCaptureDevice(); err != nil {
-		fmt.Printf("Issue Opening Capture Device %d", camera1.deviceID)
+		fmt.Printf("Issue Opening Capture Device %d \n", camera1.deviceID)
 	}
 	defer camera1.captureDevice.Close()
 
 	// --------- init background image/video
 	// Load the background image
-	backgroundPath := "./background.jpg" // Specify the path to your background image
-	background := gocv.IMRead(backgroundPath, gocv.IMReadColor)
-	defer background.Close()
+	backgroundImage := &inputImage{
+		sourceFile:  "./background.jpg",
+		frameBuffer: new(gocv.Mat),
+	}
+	defer backgroundImage.frameBuffer.Close()
+	// todo make init to load image and handle error
+	// resize to canvas size on init
+	*backgroundImage.frameBuffer = gocv.IMRead(backgroundImage.sourceFile, gocv.IMReadColor)
 
 	// Resize the background image to match the frame size
-	gocv.Resize(background, &background, image.Point{int(camera1.captureWidth), int(camera1.captureHeight)}, 0, 0, gocv.InterpolationDefault)
+	gocv.Resize(*backgroundImage.frameBuffer, backgroundImage.frameBuffer, image.Point{int(camera1.captureWidth), int(camera1.captureHeight)}, 0, 0, gocv.InterpolationDefault)
 
 	// Load background video background.mp4
-	backgroundVideoPath := "./background.mp4" // Specify the path to your background video
-	backgroundVideo, err := gocv.VideoCaptureFile(backgroundVideoPath)
-	if err != nil {
-		fmt.Printf("Error opening video file: %v\n", err)
-		return
+	backgroundVideo := &inputVideo{
+		sourceFile:  "./background.mp4",
+		frameBuffer: new(gocv.Mat),
 	}
-	defer backgroundVideo.Close()
-
-	backgroundFrame := gocv.NewMat()
-	defer backgroundFrame.Close()
+	var vidErr error
+	backgroundVideo.videoReader, vidErr = gocv.VideoCaptureFile(backgroundVideo.sourceFile)
+	if vidErr != nil {
+		panic(fmt.Sprintf("Could Not Open Background Video. %v", backgroundVideo.sourceFile))
+	}
+	defer backgroundVideo.videoReader.Close()
+	defer backgroundVideo.frameBuffer.Close()
+	*backgroundVideo.frameBuffer = gocv.NewMat()
 
 	// ------------ init stream writers
 	// create writer for raw stream
@@ -74,8 +83,8 @@ func main() {
 
 	// ------------ main display window loop
 	for {
-		// capture next video frame from webcam
-		if !camera1.getNextFrame() {
+		// capture next video frame from webcam and place into camera's frameBuffer
+		if !camera1.nextFrame() {
 			fmt.Println("Error Fetching Frame From Capture Device.")
 			break
 		}
@@ -83,33 +92,34 @@ func main() {
 		// record raw capture stream to file
 		rawWriter.Write(*camera1.frameBuffer)
 
-		// capture next video frame from file
-		if ok := backgroundVideo.Read(&backgroundFrame); !ok {
-			// attempt to set video file to first frame for EOF condition
-			backgroundVideo.Set(gocv.VideoCapturePosFrames, 0)
-			if ok := backgroundVideo.Read(&backgroundFrame); !ok {
-				fmt.Println("An unkown error has occured while reading the provided background video.")
-				break
-			}
-		}
-		if backgroundFrame.Empty() {
-			continue
+		/*videoBufferFrame := getBackgroundBuffer(backgroundVideo)
+		if videoBufferFrame == nil {
+			fmt.Println("Issue getting background video frame buffer")
+		}*/
+
+		imageBufferFrame := getBackgroundBuffer(backgroundImage)
+		if imageBufferFrame == nil {
+			fmt.Println("Issue getting background image frame buffer")
 		}
 
 		// resize background video frame to match capture image
-		gocv.Resize(backgroundFrame, &backgroundFrame, image.Point{camera1.frameBuffer.Cols(), camera1.frameBuffer.Rows()}, 0, 0, gocv.InterpolationDefault)
+
+		// TODO this overwrite the frame buffer with rezied image
+		// this size should be set on init and done auto on getFrame - should prob be based on the canvas size type?
+		gocv.Resize(*imageBufferFrame, imageBufferFrame, image.Point{camera1.frameBuffer.Cols(), camera1.frameBuffer.Rows()}, 0, 0, gocv.InterpolationDefault)
 
 		fxImg := gocv.NewMat()
 		defer fxImg.Close()
 
 		// add green screen mask effect to stream frame, exposing background
-		addGreenScreenMask(camera1.frameBuffer, &backgroundFrame, &fxImg)
+		addGreenScreenMask(camera1.frameBuffer, imageBufferFrame, &fxImg)
 
 		// write fx video frame
 		fxWriter.Write(fxImg)
 
 		// Update window
-		Window.IMShow(fxImg)
+		//Window.IMShow(fxImg)
+		fmt.Println("LOL WOW")
 		fxImg.Close()
 
 		// ESC to shutdown program

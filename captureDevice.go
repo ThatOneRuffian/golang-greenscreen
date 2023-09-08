@@ -48,8 +48,8 @@ func (cap *captureDevice) initCaptureDevice() error {
 	return nil
 }
 
-func (cap *captureDevice) getNextFrame() bool {
-	// read in the next frame into the capture frame buffer
+func (cap *captureDevice) nextFrame() bool {
+	// read in the next frame into the capture device's frame buffer
 	if cap.connected && cap.frameBuffer != nil {
 		if ok := cap.captureDevice.Read(cap.frameBuffer); !ok {
 			fmt.Printf("Device closed: %v\n", cap.deviceID)

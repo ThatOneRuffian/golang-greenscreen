@@ -1,50 +1,59 @@
 package main
 
 import (
-	"errors"
 	"fmt"
-	"os"
+	"image"
 
 	"gocv.io/x/gocv"
 )
 
-var frameStillCounter = 0
-var defaultOutputDir = "./output"
-var defaultImageSequenceDir = fmt.Sprintf("%s/image_sequence", defaultOutputDir)
+var Window = gocv.NewWindow("Feed Preview")
+var canvasSize = 0
 
-func initOutputDir() error {
-	// check if output dir exists
-	_, err := os.Stat(defaultImageSequenceDir)
+type backgroundStream interface {
+	getFrame() *gocv.Mat
+}
 
-	if err != nil {
-		// test read/execute permissions
-		switch {
-		case os.IsNotExist(err): // output dir does not exist
-			fmt.Printf("Createing Output Dir: %s\n", defaultImageSequenceDir)
-			if createErr := os.MkdirAll(defaultImageSequenceDir, os.FileMode(0744)); createErr != nil {
-				return errors.New("Could Not Create Output Directory. Check Program Permissions. Cannot Save Masked Image Sequence.")
+type inputVideo struct {
+	sourceFile  string
+	frameBuffer *gocv.Mat
+	videoReader *gocv.VideoCapture
+	frameSize   image.Point
+}
 
-			}
+type inputImage struct {
+	sourceFile  string
+	frameBuffer *gocv.Mat
+	frameSize   image.Point
+}
+
+func getBackgroundBuffer(backgroundFeed backgroundStream) *gocv.Mat {
+	return backgroundFeed.getFrame()
+}
+
+func (inputVideo *inputVideo) getFrame() *gocv.Mat {
+	// capture next video frame from file
+	if ok := inputVideo.videoReader.Read(inputVideo.frameBuffer); !ok {
+		// attempt to set video file to first frame and reread
+		// for EOF condition
+		inputVideo.videoReader.Set(gocv.VideoCapturePosFrames, 0)
+		if ok := inputVideo.videoReader.Read(inputVideo.frameBuffer); !ok {
 			return nil
-		case os.IsPermission(err): // no read access
-			fmt.Println("Unable to Read Output Dir Incorrect Permissions.")
-			fmt.Println(err)
-			return errors.New("Could Not Create Output Directory. Check Program Permissions. Cannot Save Masked Image Sequence.")
-
-		default:
-			return errors.New(fmt.Sprintf("Unknown Error Attempting to Read Output Dir, Continuing: %v", err))
 		}
 	}
-
-	// test write permission
-	fileInfo, permErr := os.Create(fmt.Sprintf("%v/dummyfile.tmp", defaultImageSequenceDir))
-	fileInfo.Close()
-
-	if permErr != nil {
-		return errors.New(fmt.Sprintf("Output Directory Does Not Have Required Write Permissions. Unable to Write Output Media.\n%v", permErr))
+	if inputVideo.frameBuffer.Empty() {
+		fmt.Println("Empty Frame Buffer Received From Capture Device.")
+		return nil
 	}
+	return inputVideo.frameBuffer
+}
 
-	return nil
+func (img *inputImage) getFrame() *gocv.Mat {
+	return img.frameBuffer
+}
+
+func (img *inputImage) resizeFrame() *gocv.Mat {
+	return img.frameBuffer
 }
 
 func saveFrameWithMaskAlpha(sourceImage *gocv.Mat, mask *gocv.Mat) bool {
