@@ -7,7 +7,6 @@ import (
 	"gocv.io/x/gocv"
 )
 
-var Window = gocv.NewWindow("Feed Preview")
 var canvasSize = 0
 
 type backgroundStream interface {
@@ -27,7 +26,7 @@ type inputImage struct {
 	frameSize   image.Point
 }
 
-func getBackgroundBuffer(backgroundFeed backgroundStream) *gocv.Mat {
+func getNextBackgroundBuffer(backgroundFeed backgroundStream) *gocv.Mat {
 	return backgroundFeed.getFrame()
 }
 

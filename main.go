@@ -3,14 +3,16 @@ package main
 import (
 	"fmt"
 	"image"
+	"time"
 
+	"fyne.io/fyne/app"
+	"fyne.io/fyne/canvas"
+	"fyne.io/fyne/container"
 	"gocv.io/x/gocv"
 )
 
 func init() {
-	defer Window.Close()
-
-	// create slice of capture devices with active/inactive status for GUI
+	// TODO  create slice of capture devices with active/inactive status for GUI
 	// --------- init media output dir
 	if err := initOutputDir(); err != nil {
 		panic(err)
@@ -82,49 +84,59 @@ func main() {
 	defer fxWriter.Close()
 
 	// ------------ main display window loop
-	for {
-		// capture next video frame from webcam and place into camera's frameBuffer
-		if !camera1.nextFrame() {
-			fmt.Println("Error Fetching Frame From Capture Device.")
-			break
+	fyneApp := app.New()
+	fyneWindow := fyneApp.NewWindow("Stream")
+	defer fyneWindow.Close()
+
+	fyneImg, _ := getNextBackgroundBuffer(backgroundImage).ToImage()
+
+	fyneImage := canvas.NewImageFromImage(fyneImg)
+	fyneImage.FillMode = canvas.ImageFillOriginal
+	fyneWindow.SetContent(container.NewMax(fyneImage))
+
+	// app loop for video rendering
+	ticker := time.NewTicker(30 * time.Millisecond)
+
+	go func(backgroundFeed backgroundStream) {
+		for {
+			select {
+			case <-ticker.C:
+				if !camera1.nextFrame() {
+					fmt.Println("Error Fetching Frame From Capture Device.")
+					break
+				}
+				// record raw capture stream to file
+				rawWriter.Write(*camera1.frameBuffer)
+
+				nextFrame := getNextBackgroundBuffer(backgroundFeed)
+				if nextFrame == nil {
+					fmt.Println("Issue getting background image frame buffer")
+				} else if nextFrame.Cols() != camera1.frameBuffer.Cols() || nextFrame.Rows() != camera1.frameBuffer.Rows() {
+					// TODO this overwrites the buffer for nextFrame
+					// this size should be set on init and done auto on getFrame - should prob be based on the canvas size type? on init?
+					gocv.Resize(*nextFrame, nextFrame, image.Point{camera1.frameBuffer.Cols(), camera1.frameBuffer.Rows()}, 0, 0, gocv.InterpolationDefault)
+				}
+
+				fxImg := gocv.NewMat()
+				defer fxImg.Close()
+
+				// add green screen mask effect to stream frame, exposing background
+				addGreenScreenMask(camera1.frameBuffer, nextFrame, &fxImg)
+				canvasImg, _ := fxImg.ToImage()
+
+				// write fx video frame to disk
+				fxWriter.Write(fxImg)
+				fxImg.Close()
+
+				// update fyne image canvas
+				fyneImage.Image = canvasImg
+				fyneImage.Refresh()
+			}
 		}
+	}(backgroundVideo)
 
-		// record raw capture stream to file
-		rawWriter.Write(*camera1.frameBuffer)
-
-		/*videoBufferFrame := getBackgroundBuffer(backgroundVideo)
-		if videoBufferFrame == nil {
-			fmt.Println("Issue getting background video frame buffer")
-		}*/
-
-		imageBufferFrame := getBackgroundBuffer(backgroundImage)
-		if imageBufferFrame == nil {
-			fmt.Println("Issue getting background image frame buffer")
-		}
-
-		// resize background video frame to match capture image
-
-		// TODO this overwrite the frame buffer with rezied image
-		// this size should be set on init and done auto on getFrame - should prob be based on the canvas size type?
-		gocv.Resize(*imageBufferFrame, imageBufferFrame, image.Point{camera1.frameBuffer.Cols(), camera1.frameBuffer.Rows()}, 0, 0, gocv.InterpolationDefault)
-
-		fxImg := gocv.NewMat()
-		defer fxImg.Close()
-
-		// add green screen mask effect to stream frame, exposing background
-		addGreenScreenMask(camera1.frameBuffer, imageBufferFrame, &fxImg)
-
-		// write fx video frame
-		fxWriter.Write(fxImg)
-
-		// Update window
-		//Window.IMShow(fxImg)
-		fmt.Println("LOL WOW")
-		fxImg.Close()
-
-		// ESC to shutdown program
-		if Window.WaitKey(1) == 27 {
-			break
-		}
-	}
+	// run fyne app
+	// TODO ESC to shutdown program?
+	fyneWindow.ShowAndRun()
+	fyneWindow.Close()
 }
