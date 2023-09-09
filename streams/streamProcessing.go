@@ -1,4 +1,4 @@
-package main
+package streams
 
 import (
 	"fmt"
@@ -9,50 +9,50 @@ import (
 
 var canvasSize = 0
 
-type backgroundStream interface {
+type BackgroundStream interface {
 	getFrame() *gocv.Mat
 }
 
-type inputVideo struct {
-	sourceFile  string
-	frameBuffer *gocv.Mat
-	videoReader *gocv.VideoCapture
-	frameSize   image.Point
+type InputVideo struct {
+	SourceFile  string
+	FrameBuffer *gocv.Mat
+	VideoReader *gocv.VideoCapture
+	FrameSize   image.Point
 }
 
-type inputImage struct {
-	sourceFile  string
-	frameBuffer *gocv.Mat
-	frameSize   image.Point
+type InputImage struct {
+	SourceFile  string
+	FrameBuffer *gocv.Mat
+	FrameSize   image.Point
 }
 
-func getNextBackgroundBuffer(backgroundFeed backgroundStream) *gocv.Mat {
+func GetNextBackgroundBuffer(backgroundFeed BackgroundStream) *gocv.Mat {
 	return backgroundFeed.getFrame()
 }
 
-func (inputVideo *inputVideo) getFrame() *gocv.Mat {
+func (InputVideo *InputVideo) getFrame() *gocv.Mat {
 	// capture next video frame from file
-	if ok := inputVideo.videoReader.Read(inputVideo.frameBuffer); !ok {
+	if ok := InputVideo.VideoReader.Read(InputVideo.FrameBuffer); !ok {
 		// attempt to set video file to first frame and reread
 		// for EOF condition
-		inputVideo.videoReader.Set(gocv.VideoCapturePosFrames, 0)
-		if ok := inputVideo.videoReader.Read(inputVideo.frameBuffer); !ok {
+		InputVideo.VideoReader.Set(gocv.VideoCapturePosFrames, 0)
+		if ok := InputVideo.VideoReader.Read(InputVideo.FrameBuffer); !ok {
 			return nil
 		}
 	}
-	if inputVideo.frameBuffer.Empty() {
+	if InputVideo.FrameBuffer.Empty() {
 		fmt.Println("Empty Frame Buffer Received From Capture Device.")
 		return nil
 	}
-	return inputVideo.frameBuffer
+	return InputVideo.FrameBuffer
 }
 
-func (img *inputImage) getFrame() *gocv.Mat {
-	return img.frameBuffer
+func (img *InputImage) getFrame() *gocv.Mat {
+	return img.FrameBuffer
 }
 
-func (img *inputImage) resizeFrame() *gocv.Mat {
-	return img.frameBuffer
+func (img *InputImage) resizeFrame() *gocv.Mat {
+	return img.FrameBuffer
 }
 
 func saveFrameWithMaskAlpha(sourceImage *gocv.Mat, mask *gocv.Mat) bool {
@@ -96,7 +96,7 @@ func saveFrameWithMaskAlpha(sourceImage *gocv.Mat, mask *gocv.Mat) bool {
 	return true
 }
 
-func addGreenScreenMask(sourceImage *gocv.Mat, newBackground *gocv.Mat, result *gocv.Mat) {
+func AddGreenScreenMask(sourceImage *gocv.Mat, newBackground *gocv.Mat, result *gocv.Mat) {
 	// create capture window
 
 	// Define the lower and upper bounds for the green color in HSV
