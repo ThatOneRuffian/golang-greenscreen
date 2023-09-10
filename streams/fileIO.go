@@ -6,6 +6,13 @@ import (
 	"os"
 )
 
+func init() {
+	// --------- init media output dir
+	if err := InitOutputDir(); err != nil {
+		panic(err)
+	}
+}
+
 var frameStillCounter = 0
 var DefaultOutputDir = "./output"
 var defaultImageSequenceDir = fmt.Sprintf("%s/image_sequence", DefaultOutputDir)

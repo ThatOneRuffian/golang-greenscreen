@@ -13,6 +13,12 @@ type BackgroundStream interface {
 	getFrame() *gocv.Mat
 }
 
+type WriterPipeLine struct {
+	FxStreamWriter    *gocv.VideoWriter
+	RawStreamWriter   *gocv.VideoWriter
+	MaskedImageWriter func(gocv.Mat) error
+}
+
 type InputVideo struct {
 	SourceFile  string
 	FrameBuffer *gocv.Mat
