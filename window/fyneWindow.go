@@ -84,8 +84,8 @@ func StartCaptureStream(backgroundFeed streams.BackgroundStream, cap *streams.Ca
 
 			// update fyne image canvas
 			fyneImage.Image = canvasImg
-
 			fyneImage.Refresh()
+
 			if !IsActive {
 				safelyQuitSignal <- true
 				break
