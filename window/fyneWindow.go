@@ -4,50 +4,98 @@ import (
 	"fmt"
 	"golang_greenscreen/streams"
 	"image"
+	"log"
 	"time"
 
+	"fyne.io/fyne"
 	"fyne.io/fyne/app"
 	"fyne.io/fyne/canvas"
 	"fyne.io/fyne/container"
 	"fyne.io/fyne/dialog"
+	"fyne.io/fyne/widget"
 	"gocv.io/x/gocv"
 )
 
-var StreamApp = app.New()
-var StreamWindow = StreamApp.NewWindow("Stream")
-var IsActive = true
-var safelyQuitSignal = make(chan bool)
+var StreamStruct *appStruct
+
+type appStruct struct {
+	StreamApp        fyne.App
+	StreamWindow     fyne.Window
+	IsActive         bool
+	safelyQuitSignal chan bool
+
+	// widgets
+	recordBtn         *widget.Button
+	captureCombSelect *widget.Select
+}
 
 func init() {
-	defer StreamWindow.Close()
+	StreamStruct = &appStruct{}
+	StreamStruct.StreamApp = app.New()
+	StreamStruct.StreamWindow = StreamStruct.StreamApp.NewWindow("Stream")
+	defer StreamStruct.StreamWindow.Close()
 
 	// set on exit dialog and cleanup
-	StreamWindow.SetCloseIntercept(func() {
+	StreamStruct.StreamWindow.SetCloseIntercept(func() {
 		confirmation := dialog.NewConfirm("Confirmation", "Are You Sure You Want to Exit?", func(response bool) {
 			if response {
-				IsActive = false
-				<-safelyQuitSignal
-				StreamApp.Quit()
+				StreamStruct.IsActive = false
+				<-StreamStruct.safelyQuitSignal
+				StreamStruct.StreamApp.Quit()
 			}
-		}, StreamWindow)
+		}, StreamStruct.StreamWindow)
 		confirmation.Show()
 	})
 }
 
 func StartCaptureStream(backgroundFeed streams.BackgroundStream, cap *streams.CaptureDevice, rawWriter gocv.VideoWriter, fxWriter gocv.VideoWriter) {
-	ticker := time.NewTicker(30 * time.Millisecond)
+	ticker := time.NewTicker(fpsToMilisecond(cap.FrameRate))
 
 	fyneImg, _ := streams.GetNextBackgroundBuffer(backgroundFeed).ToImage()
 
 	fyneImage := canvas.NewImageFromImage(fyneImg)
 	fyneImage.FillMode = canvas.ImageFillOriginal
-	StreamWindow.SetContent(container.NewMax(fyneImage))
 
-	for IsActive {
+	recordBtn := widget.NewButton("Record", func() {
+		fmt.Println("recording")
+	})
+	recordBtn.Disable()
+
+	capCombo := widget.NewSelect(streams.AvailableCaptureDevices, func(value string) {
+		log.Println("Selected set to", value)
+		if value != "" {
+			// init selected camera
+			if cap.Connected {
+				// todo this needs to point to new capture device can't close
+				cap.CaptureDevice.Close()
+			}
+			if err := cap.InitCaptureDevice(); err != nil {
+				fmt.Printf("Issue Opening Capture Device %d \n", cap.DeviceID)
+			}
+			recordBtn.Enable()
+		}
+	})
+
+	StreamStruct.IsActive = true
+	StreamStruct.recordBtn = recordBtn
+	StreamStruct.captureCombSelect = capCombo
+	StreamStruct.safelyQuitSignal = make(chan bool)
+
+	// draw canvas
+	StreamStruct.StreamWindow.SetContent(container.NewVBox(fyneImage, StreamStruct.captureCombSelect, StreamStruct.recordBtn))
+
+	// fyne takes some time to setup the initial render size, so waiting here...
+	go time.AfterFunc(time.Millisecond*100, func() {
+		StreamStruct.StreamWindow.CenterOnScreen()
+	})
+
+	for StreamStruct.IsActive {
 		select {
 		case <-ticker.C:
+
 			// handle capture device
-			if !cap.NextFrame() {
+			if !cap.NextFrame() || !cap.Connected {
+				// todo handle camera not connected? default image?
 				fmt.Println("Error Fetching Frame From Capture Device.")
 				continue
 			}
@@ -87,5 +135,9 @@ func StartCaptureStream(backgroundFeed streams.BackgroundStream, cap *streams.Ca
 			fyneImage.Refresh()
 		}
 	}
-	safelyQuitSignal <- true
+	StreamStruct.safelyQuitSignal <- true
+}
+
+func fpsToMilisecond(fps float64) time.Duration {
+	return time.Duration(1000 / fps)
 }

@@ -10,8 +10,8 @@ type CaptureDevice struct {
 	DeviceID      int
 	Connected     bool
 	FrameRate     float64
-	CaptureHeight float64
-	CaptureWidth  float64
+	CaptureHeight int
+	CaptureWidth  int
 	CaptureDevice *gocv.VideoCapture
 	FrameBuffer   *gocv.Mat
 }
@@ -24,15 +24,15 @@ func (cap *CaptureDevice) InitCaptureDevice() error {
 	var err error
 	cap.CaptureDevice, err = gocv.VideoCaptureDeviceWithAPI(cap.DeviceID, gocv.VideoCaptureGstreamer)
 	if err != nil {
-		fmt.Printf("Error opening video capture device: %v\n", cap.DeviceID)
+		fmt.Printf("Error opening video capture device %v:\n", cap.DeviceID)
 		fmt.Println(err)
 		return err
 	}
 
 	// set camera's capture settings
 	cap.CaptureDevice.Set(gocv.VideoCaptureFPS, cap.FrameRate)
-	cap.CaptureDevice.Set(gocv.VideoCaptureFrameHeight, cap.CaptureHeight)
-	cap.CaptureDevice.Set(gocv.VideoCaptureFrameWidth, cap.CaptureWidth)
+	cap.CaptureDevice.Set(gocv.VideoCaptureFrameHeight, float64(cap.CaptureHeight))
+	cap.CaptureDevice.Set(gocv.VideoCaptureFrameWidth, float64(cap.CaptureWidth))
 
 	// init frame buffer
 	img := gocv.NewMat()

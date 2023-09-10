@@ -20,13 +20,9 @@ func main() {
 	camera1 := &streams.CaptureDevice{
 		DeviceID:      0,
 		FrameRate:     24.0,
-		CaptureHeight: 480.0,
-		CaptureWidth:  864.0,
+		CaptureHeight: 480,
+		CaptureWidth:  864,
 	}
-	if err := camera1.InitCaptureDevice(); err != nil {
-		fmt.Printf("Issue Opening Capture Device %d \n", camera1.DeviceID)
-	}
-	defer camera1.CaptureDevice.Close()
 
 	// --------- Load the background image
 	backgroundImage := &streams.InputImage{
@@ -40,7 +36,7 @@ func main() {
 
 	// resize the background image to match the frame size
 	// TODO this should be updated to match the capture device on init
-	gocv.Resize(*backgroundImage.FrameBuffer, backgroundImage.FrameBuffer, image.Point{int(camera1.CaptureWidth), int(camera1.CaptureHeight)}, 0, 0, gocv.InterpolationDefault)
+	gocv.Resize(*backgroundImage.FrameBuffer, backgroundImage.FrameBuffer, image.Point{camera1.CaptureWidth, camera1.CaptureHeight}, 0, 0, gocv.InterpolationDefault)
 
 	// ---------- Load background video background.mp4
 	backgroundVideo := &streams.InputVideo{
@@ -59,7 +55,7 @@ func main() {
 	// ------------ init stream writers
 	// create writer for raw stream
 	rawSaveFile := fmt.Sprintf("%s/stream_raw_output.mp4", streams.DefaultOutputDir)
-	rawWriter, err := gocv.VideoWriterFile(rawSaveFile, "mp4v", camera1.FrameRate, int(camera1.CaptureWidth), int(camera1.CaptureHeight), true)
+	rawWriter, err := gocv.VideoWriterFile(rawSaveFile, "mp4v", camera1.FrameRate, camera1.CaptureWidth, camera1.CaptureHeight, true)
 	if err != nil {
 		fmt.Printf("Error opening video writer device: %v\n", rawSaveFile)
 		fmt.Printf("err: %v\n", err)
@@ -69,7 +65,7 @@ func main() {
 
 	// create writer for VFX stream
 	fxSaveFile := fmt.Sprintf("%s/stream_fx_output.mp4", streams.DefaultOutputDir)
-	fxWriter, err := gocv.VideoWriterFile(fxSaveFile, "mp4v", camera1.FrameRate, int(camera1.CaptureWidth), int(camera1.CaptureHeight), true)
+	fxWriter, err := gocv.VideoWriterFile(fxSaveFile, "mp4v", camera1.FrameRate, camera1.CaptureWidth, camera1.CaptureHeight, true)
 	if err != nil {
 		fmt.Printf("Error opening FX video writer device: %v\n", fxSaveFile)
 		fmt.Printf("err: %v\n", err)
@@ -81,7 +77,7 @@ func main() {
 	// app loop for video rendering
 	go window.StartCaptureStream(backgroundVideo, camera1, *rawWriter, *fxWriter)
 
-	window.StreamWindow.ShowAndRun()
+	window.StreamStruct.StreamWindow.ShowAndRun()
 
 	// close file streams
 	rawWriter.Close()
