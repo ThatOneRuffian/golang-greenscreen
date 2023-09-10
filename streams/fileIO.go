@@ -42,8 +42,13 @@ func InitOutputDir() error {
 	}
 
 	// test write permission
-	fileInfo, permErr := os.Create(fmt.Sprintf("%v/dummyfile.tmp", defaultImageSequenceDir))
+	dummyFile := fmt.Sprintf("%v/dummyfile.tmp", defaultImageSequenceDir)
+	fileInfo, permErr := os.Create(dummyFile)
 	fileInfo.Close()
+
+	if remErr := os.Remove(dummyFile); remErr != nil {
+		fmt.Println("Error Removing Dummy File. Unknown Error.")
+	}
 
 	if permErr != nil {
 		return errors.New(fmt.Sprintf("Output Directory Does Not Have Required Write Permissions. Unable to Write Output Media.\n%v", permErr))
