@@ -52,34 +52,9 @@ func main() {
 	defer backgroundVideo.FrameBuffer.Close()
 	*backgroundVideo.FrameBuffer = gocv.NewMat()
 
-	// ------------ init stream writers
-	// create writer for raw stream
-	rawSaveFile := fmt.Sprintf("%s/stream_raw_output.mp4", streams.DefaultOutputDir)
-	rawWriter, err := gocv.VideoWriterFile(rawSaveFile, "mp4v", camera1.FrameRate, camera1.CaptureWidth, camera1.CaptureHeight, true)
-	if err != nil {
-		fmt.Printf("Error opening video writer device: %v\n", rawSaveFile)
-		fmt.Printf("err: %v\n", err)
-		return
-	}
-	defer rawWriter.Close()
-
-	// create writer for VFX stream
-	fxSaveFile := fmt.Sprintf("%s/stream_fx_output.mp4", streams.DefaultOutputDir)
-	fxWriter, err := gocv.VideoWriterFile(fxSaveFile, "mp4v", camera1.FrameRate, camera1.CaptureWidth, camera1.CaptureHeight, true)
-	if err != nil {
-		fmt.Printf("Error opening FX video writer device: %v\n", fxSaveFile)
-		fmt.Printf("err: %v\n", err)
-		return
-	}
-	defer fxWriter.Close()
-
 	// -------------- run fyne app
 	// app loop for video rendering
-	go window.StartCaptureStream(backgroundVideo, camera1, *rawWriter, *fxWriter)
+	go window.StartMainWindow(backgroundVideo, camera1)
 
 	window.StreamStruct.StreamWindow.ShowAndRun()
-
-	// close file streams
-	rawWriter.Close()
-	fxWriter.Close()
 }

@@ -17,12 +17,18 @@ import (
 )
 
 var StreamStruct *appStruct
+var defaultOutputDir = "./output"
 
 type appStruct struct {
-	StreamApp        fyne.App
-	StreamWindow     fyne.Window
-	IsActive         bool
+	StreamApp    fyne.App
+	StreamWindow fyne.Window
+
+	// signals
 	safelyQuitSignal chan bool
+
+	// states
+	streamIsActive    bool
+	streamIsRecording bool
 
 	// widgets
 	recordBtn         *widget.Button
@@ -33,13 +39,12 @@ func init() {
 	StreamStruct = &appStruct{}
 	StreamStruct.StreamApp = app.New()
 	StreamStruct.StreamWindow = StreamStruct.StreamApp.NewWindow("Stream")
-	defer StreamStruct.StreamWindow.Close()
 
 	// set on exit dialog and cleanup
 	StreamStruct.StreamWindow.SetCloseIntercept(func() {
 		confirmation := dialog.NewConfirm("Confirmation", "Are You Sure You Want to Exit?", func(response bool) {
 			if response {
-				StreamStruct.IsActive = false
+				StreamStruct.streamIsActive = false
 				<-StreamStruct.safelyQuitSignal
 				StreamStruct.StreamApp.Quit()
 			}
@@ -48,16 +53,61 @@ func init() {
 	})
 }
 
-func StartCaptureStream(backgroundFeed streams.BackgroundStream, cap *streams.CaptureDevice, rawWriter gocv.VideoWriter, fxWriter gocv.VideoWriter) {
+func StartMainWindow(backgroundFeed streams.BackgroundStream, cap *streams.CaptureDevice) {
 	ticker := time.NewTicker(fpsToMilisecond(cap.FrameRate))
+	// ------------ init stream writer loc
+	streamWriters := &streams.WriterPipeLine{}
 
-	fyneImg, _ := streams.GetNextBackgroundBuffer(backgroundFeed).ToImage()
+	fyneImg, bgErr := streams.GetNextBackgroundBuffer(backgroundFeed).ToImage()
 
+	if bgErr != nil {
+		fmt.Println("Could Not Aquire Next Frame From Background Stream. Using Default.")
+		//TODO set default background iamge
+	}
+
+	recordStopSig := make(chan bool, 2)
 	fyneImage := canvas.NewImageFromImage(fyneImg)
 	fyneImage.FillMode = canvas.ImageFillOriginal
 
 	recordBtn := widget.NewButton("Record", func() {
-		fmt.Println("recording")
+		// TODO need to track recording status
+
+		if !StreamStruct.streamIsRecording {
+			fmt.Println("recording")
+			// --------- init media output dir
+			// TODO
+			// need to add timestamp to output dir to avoid overwrites - need structure: output > day_start > session_id > record_hash_id_count? > [img, mp4, mp4]
+			// fix bug where dir is not found and insta crash on write "./output2" gocv panic
+			currentRecordDir := fmt.Sprintf("%s/%s", defaultOutputDir, time.Now().Format("2006-01-02-150405"))
+			defaultImageSequenceDir := fmt.Sprintf("%s/image_sequence", currentRecordDir)
+
+			if err := streams.InitOutputDir(defaultImageSequenceDir); err != nil {
+				fmt.Printf("There Was an Error Creating the Stream Output Directory: %v", err)
+				StreamStruct.streamIsRecording = false
+			}
+
+			// todo update button to reflect state
+			rawErr, fxErr := streamWriters.OpenWriters(currentRecordDir)
+
+			if rawErr != nil {
+				fmt.Println("Error Opening Raw Writer.")
+			}
+
+			if fxErr != nil {
+				fmt.Println("Error Opening FX Writer.")
+			}
+
+			// begin recording stream
+			StreamStruct.streamIsRecording = true
+
+		} else {
+			// already recording close recorders
+			//todo revert back to normal button
+
+			// todo need to wait for frames to be written button is in thread
+			fmt.Println("recording stopped")
+			recordStopSig <- true
+		}
 	})
 	recordBtn.Disable()
 
@@ -76,7 +126,7 @@ func StartCaptureStream(backgroundFeed streams.BackgroundStream, cap *streams.Ca
 		}
 	})
 
-	StreamStruct.IsActive = true
+	StreamStruct.streamIsActive = true
 	StreamStruct.recordBtn = recordBtn
 	StreamStruct.captureCombSelect = capCombo
 	StreamStruct.safelyQuitSignal = make(chan bool)
@@ -89,9 +139,17 @@ func StartCaptureStream(backgroundFeed streams.BackgroundStream, cap *streams.Ca
 		StreamStruct.StreamWindow.CenterOnScreen()
 	})
 
-	for StreamStruct.IsActive {
+	for StreamStruct.streamIsActive {
 		select {
 		case <-ticker.C:
+
+			if len(recordStopSig) > 0 {
+				fmt.Println("Record Stop Signal Received")
+				StreamStruct.streamIsRecording = false
+				streamWriters.MaskedStillCounter = 0
+				streamWriters.CloseWriters()
+				<-recordStopSig
+			}
 
 			// handle capture device
 			if !cap.NextFrame() || !cap.Connected {
@@ -118,16 +176,21 @@ func StartCaptureStream(backgroundFeed streams.BackgroundStream, cap *streams.Ca
 			fxImg := gocv.NewMat()
 			defer fxImg.Close()
 
-			// TODO move to main ------ write funcs
-			// add green screen and save mask file
+			// TODO add fx pipeline
+			// add green screen effect and save mask file
 			streams.AddGreenScreenMask(cap.FrameBuffer, nextBackgroundFrame, &fxImg)
 			canvasImg, _ := fxImg.ToImage()
 
-			// record raw capture stream to file
-			rawWriter.Write(*cap.FrameBuffer)
-
-			// write fx video frame to disk
-			fxWriter.Write(fxImg)
+			// save images to writer pipeline
+			if StreamStruct.streamIsRecording {
+				var rawErr, fxErr, maskErr error
+				rawErr, fxErr, maskErr = streamWriters.SaveFrames(cap.FrameBuffer, &fxImg, &fxImg)
+				// todo handle these errors need stderr and debug
+				_ = rawErr
+				_ = fxErr
+				_ = maskErr
+				//fmt.Println(rawErr, fxErr, maskErr)
+			}
 			fxImg.Close()
 
 			// update fyne image canvas
@@ -135,6 +198,7 @@ func StartCaptureStream(backgroundFeed streams.BackgroundStream, cap *streams.Ca
 			fyneImage.Refresh()
 		}
 	}
+	streamWriters.CloseWriters()
 	StreamStruct.safelyQuitSignal <- true
 }
 
