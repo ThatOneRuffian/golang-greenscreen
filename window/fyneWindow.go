@@ -112,15 +112,15 @@ func StartMainWindow(backgroundFeed streams.BackgroundStream, cap *streams.Captu
 	recordBtn.Disable()
 
 	capCombo := widget.NewSelect(streams.AvailableCaptureDevices, func(value string) {
-		log.Println("Selected set to", value)
+		log.Println("Selected Capture Device Set to", value)
 		if value != "" {
 			// init selected camera
 			if cap.Connected {
 				// todo this needs to point to new capture device can't close
 				cap.CaptureDevice.Close()
 			}
-			if err := cap.InitCaptureDevice(); err != nil {
-				fmt.Printf("Issue Opening Capture Device %d \n", cap.DeviceID)
+			if err := cap.InitCaptureDevice(value); err != nil {
+				fmt.Printf("Issue Opening Capture Device %s \n", value)
 			}
 			recordBtn.Enable()
 		}

@@ -2,6 +2,7 @@ package streams
 
 import (
 	"fmt"
+	"strconv"
 
 	"gocv.io/x/gocv"
 )
@@ -19,14 +20,16 @@ type CaptureDevice struct {
 // todo need to take camera and settings
 // return camera instance with pointers to current settings
 // or something for UI. need dropdown menu select feed(s)
-func (cap *CaptureDevice) InitCaptureDevice() error {
+func (cap *CaptureDevice) InitCaptureDevice(selectedCaptureDevice string) error {
 	fmt.Printf("Attempting to mount capture device %d...", cap.DeviceID)
-	var err error
-	cap.CaptureDevice, err = gocv.VideoCaptureDeviceWithAPI(cap.DeviceID, gocv.VideoCaptureGstreamer)
-	if err != nil {
-		fmt.Printf("Error opening video capture device %v:\n", cap.DeviceID)
-		fmt.Println(err)
-		return err
+	var capErr error
+	var convErr error
+	decviceId, convErr := strconv.Atoi(selectedCaptureDevice)
+	cap.CaptureDevice, capErr = gocv.VideoCaptureDeviceWithAPI(decviceId, gocv.VideoCaptureGstreamer)
+	if capErr != nil || convErr != nil {
+		fmt.Printf("Error opening video capture device %s:\n", selectedCaptureDevice)
+		fmt.Println(capErr)
+		return capErr
 	}
 
 	// set camera's capture settings
@@ -50,7 +53,7 @@ func (cap *CaptureDevice) InitCaptureDevice() error {
 
 func (cap *CaptureDevice) NextFrame() bool {
 	// read in the next frame into the capture device's frame buffer
-	if cap.Connected && cap.FrameBuffer != nil {
+	if cap.Connected && cap.CaptureDevice != nil && cap.FrameBuffer != nil {
 		if ok := cap.CaptureDevice.Read(cap.FrameBuffer); !ok {
 			fmt.Printf("Device closed: %v\n", cap.DeviceID)
 			return false
