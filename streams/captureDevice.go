@@ -33,19 +33,19 @@ func (cap *CaptureDevice) InitCaptureDevice(selectedCaptureDevice string) error 
 	}
 
 	// set camera's capture settings
-	cap.CaptureDevice.Set(gocv.VideoCaptureFPS, cap.FrameRate)
-	cap.CaptureDevice.Set(gocv.VideoCaptureFrameHeight, float64(cap.CaptureHeight))
-	cap.CaptureDevice.Set(gocv.VideoCaptureFrameWidth, float64(cap.CaptureWidth))
+	//cap.CaptureDevice.Set(gocv.VideoCaptureFPS, cap.FrameRate)
+	//cap.CaptureDevice.Set(gocv.VideoCaptureFrameHeight, float64(cap.CaptureHeight))
+	//cap.CaptureDevice.Set(gocv.VideoCaptureFrameWidth, float64(cap.CaptureWidth))
 
 	// init frame buffer
 	img := gocv.NewMat()
 	cap.FrameBuffer = &img
 
 	// print camera's current settings
-	width := cap.CaptureDevice.Get(gocv.VideoCaptureFrameWidth)
-	height := cap.CaptureDevice.Get(gocv.VideoCaptureFrameHeight)
-	FrameRate := cap.CaptureDevice.Get(gocv.VideoCaptureFPS)
-	fmt.Println(width, height, FrameRate)
+	cap.CaptureWidth = int(cap.CaptureDevice.Get(gocv.VideoCaptureFrameWidth))
+	cap.CaptureHeight = int(cap.CaptureDevice.Get(gocv.VideoCaptureFrameHeight))
+	cap.FrameRate = float64(cap.CaptureDevice.Get(gocv.VideoCaptureFPS))
+	fmt.Println(cap.CaptureWidth, cap.CaptureHeight, cap.FrameRate)
 	cap.Connected = true
 
 	return nil

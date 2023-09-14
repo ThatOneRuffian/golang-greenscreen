@@ -53,11 +53,17 @@ func init() {
 	})
 }
 
-func StartMainWindow(backgroundFeed streams.BackgroundStream, cap *streams.CaptureDevice) {
-	ticker := time.NewTicker(fpsToMilisecond(cap.FrameRate))
-	// ------------ init stream writer loc
-	streamWriters := &streams.WriterPipeLine{}
+func StartMainWindow(backgroundFeed streams.BackgroundStream) {
 
+	// --------- init webcam
+	cap := &streams.CaptureDevice{
+		//DeviceID: 0,
+		//FrameRate: 24.0,
+		//CaptureHeight: 480,
+		//CaptureWidth:  864,
+	}
+
+	streamWriters := &streams.WriterPipeLine{}
 	fyneImg, bgErr := streams.GetNextBackgroundBuffer(backgroundFeed).ToImage()
 
 	if bgErr != nil {
@@ -66,8 +72,14 @@ func StartMainWindow(backgroundFeed streams.BackgroundStream, cap *streams.Captu
 	}
 
 	recordStopSig := make(chan bool, 2)
+	// calculate the scaling factor based on the desired maxWidth and the original width
+	// width for canvas
+	maxWidth := 200.0
+	scaleFactor := maxWidth / float64(fyneImg.Bounds().Dx())
 	fyneImage := canvas.NewImageFromImage(fyneImg)
-	fyneImage.FillMode = canvas.ImageFillOriginal
+	canvasHeight := int(float64(fyneImg.Bounds().Dy()) * scaleFactor)
+	fyneImage.Resize(fyne.NewSize(int(maxWidth), canvasHeight))
+	fyneImage.FillMode = canvas.ImageFillContain
 
 	recordBtn := widget.NewButton("Record", func() {
 		// TODO need to track recording status
@@ -87,7 +99,7 @@ func StartMainWindow(backgroundFeed streams.BackgroundStream, cap *streams.Captu
 			}
 
 			// todo update button to reflect state
-			rawErr, fxErr := streamWriters.OpenWriters(currentRecordDir)
+			rawErr, fxErr := streamWriters.OpenWriters(currentRecordDir, cap)
 
 			if rawErr != nil {
 				fmt.Println("Error Opening Raw Writer.")
@@ -114,6 +126,9 @@ func StartMainWindow(backgroundFeed streams.BackgroundStream, cap *streams.Captu
 	capCombo := widget.NewSelect(streams.AvailableCaptureDevices, func(value string) {
 		log.Println("Selected Capture Device Set to", value)
 		if value != "" {
+			recordStopSig <- true
+			StreamStruct.streamIsActive = false
+
 			// init selected camera
 			if cap.Connected {
 				// todo this needs to point to new capture device can't close
@@ -122,27 +137,28 @@ func StartMainWindow(backgroundFeed streams.BackgroundStream, cap *streams.Captu
 			if err := cap.InitCaptureDevice(value); err != nil {
 				fmt.Printf("Issue Opening Capture Device %s \n", value)
 			}
+			StreamStruct.streamIsActive = true
+			go startCaptureStream(cap, backgroundFeed, streamWriters, fyneImage, recordStopSig)
 			recordBtn.Enable()
 		}
 	})
 
-	StreamStruct.streamIsActive = true
 	StreamStruct.recordBtn = recordBtn
 	StreamStruct.captureCombSelect = capCombo
 	StreamStruct.safelyQuitSignal = make(chan bool)
 
 	// draw canvas
-	StreamStruct.StreamWindow.SetContent(container.NewVBox(fyneImage, StreamStruct.captureCombSelect, StreamStruct.recordBtn))
+	StreamStruct.StreamWindow.SetContent(container.NewAdaptiveGrid(1, fyneImage, StreamStruct.captureCombSelect, StreamStruct.recordBtn))
+}
 
-	// fyne takes some time to setup the initial render size, so waiting here...
-	go time.AfterFunc(time.Millisecond*100, func() {
-		StreamStruct.StreamWindow.CenterOnScreen()
-	})
+func startCaptureStream(cap *streams.CaptureDevice, backgroundFeed streams.BackgroundStream, streamWriters *streams.WriterPipeLine, fyneImage *canvas.Image, recordStopSig chan bool) {
+	maxWidth := 200.0
+	ticker := time.NewTicker(fpsToMilisecond(cap.FrameRate))
 
 	for StreamStruct.streamIsActive {
 		select {
 		case <-ticker.C:
-
+			// need to update tick to match camera's fps
 			if len(recordStopSig) > 0 {
 				fmt.Println("Record Stop Signal Received")
 				StreamStruct.streamIsRecording = false
@@ -153,7 +169,7 @@ func StartMainWindow(backgroundFeed streams.BackgroundStream, cap *streams.Captu
 
 			// handle capture device
 			if !cap.NextFrame() || !cap.Connected {
-				// todo handle camera not connected? default image?
+				// todo handle camera not connected? default image and scaling of image?
 				fmt.Println("Error Fetching Frame From Capture Device.")
 				continue
 			}
@@ -181,6 +197,9 @@ func StartMainWindow(backgroundFeed streams.BackgroundStream, cap *streams.Captu
 			streams.AddGreenScreenMask(cap.FrameBuffer, nextBackgroundFrame, &fxImg)
 			canvasImg, _ := fxImg.ToImage()
 
+			// Calculate the scaling factor based on the desired maxWidth and the original width
+			scaleFactor := maxWidth / float64(canvasImg.Bounds().Dx())
+
 			// save images to writer pipeline
 			if StreamStruct.streamIsRecording {
 				var rawErr, fxErr, maskErr error
@@ -195,7 +214,9 @@ func StartMainWindow(backgroundFeed streams.BackgroundStream, cap *streams.Captu
 
 			// update fyne image canvas
 			fyneImage.Image = canvasImg
+			fyneImage.Resize(fyne.NewSize(int(maxWidth), int(float64(canvasImg.Bounds().Dy())*scaleFactor)))
 			fyneImage.Refresh()
+			StreamStruct.StreamWindow.Content().Refresh()
 		}
 	}
 	streamWriters.CloseWriters()

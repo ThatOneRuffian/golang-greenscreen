@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"image"
 
 	"golang_greenscreen/streams"
 	"golang_greenscreen/window"
@@ -16,14 +15,6 @@ func init() {
 
 func main() {
 
-	// --------- init webcam
-	camera1 := &streams.CaptureDevice{
-		DeviceID:      0,
-		FrameRate:     24.0,
-		CaptureHeight: 480,
-		CaptureWidth:  864,
-	}
-
 	// --------- Load the background image
 	backgroundImage := &streams.InputImage{
 		SourceFile:  "./background.jpg",
@@ -33,10 +24,6 @@ func main() {
 	// todo make init to load image and handle error
 	// resize to canvas size on init
 	*backgroundImage.FrameBuffer = gocv.IMRead(backgroundImage.SourceFile, gocv.IMReadColor)
-
-	// resize the background image to match the frame size
-	// TODO this should be updated to match the capture device on init
-	gocv.Resize(*backgroundImage.FrameBuffer, backgroundImage.FrameBuffer, image.Point{camera1.CaptureWidth, camera1.CaptureHeight}, 0, 0, gocv.InterpolationDefault)
 
 	// ---------- Load background video background.mp4
 	backgroundVideo := &streams.InputVideo{
@@ -54,7 +41,7 @@ func main() {
 
 	// -------------- run fyne app
 	// app loop for video rendering
-	go window.StartMainWindow(backgroundVideo, camera1)
+	window.StartMainWindow(backgroundVideo)
 
 	window.StreamStruct.StreamWindow.ShowAndRun()
 }
