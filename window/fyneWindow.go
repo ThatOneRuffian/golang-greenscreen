@@ -44,8 +44,12 @@ func init() {
 	StreamStruct.StreamWindow.SetCloseIntercept(func() {
 		confirmation := dialog.NewConfirm("Confirmation", "Are You Sure You Want to Exit?", func(response bool) {
 			if response {
-				StreamStruct.streamIsActive = false
-				<-StreamStruct.safelyQuitSignal
+
+				if StreamStruct.streamIsActive {
+					StreamStruct.streamIsActive = false
+					<-StreamStruct.safelyQuitSignal
+				}
+
 				StreamStruct.StreamApp.Quit()
 			}
 		}, StreamStruct.StreamWindow)

@@ -25,7 +25,7 @@ func (cap *CaptureDevice) InitCaptureDevice(selectedCaptureDevice string) error 
 	var capErr error
 	var convErr error
 	decviceId, convErr := strconv.Atoi(selectedCaptureDevice)
-	cap.CaptureDevice, capErr = gocv.VideoCaptureDeviceWithAPI(decviceId, gocv.VideoCaptureGstreamer)
+	cap.CaptureDevice, capErr = gocv.VideoCaptureDeviceWithAPI(decviceId, gocv.VideoCaptureV4L2)
 	if capErr != nil || convErr != nil {
 		fmt.Printf("Error opening video capture device %s:\n", selectedCaptureDevice)
 		fmt.Println(capErr)
