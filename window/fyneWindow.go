@@ -44,12 +44,10 @@ func init() {
 	StreamStruct.StreamWindow.SetCloseIntercept(func() {
 		confirmation := dialog.NewConfirm("Confirmation", "Are You Sure You Want to Exit?", func(response bool) {
 			if response {
-
 				if StreamStruct.streamIsActive {
 					StreamStruct.streamIsActive = false
 					<-StreamStruct.safelyQuitSignal
 				}
-
 				StreamStruct.StreamApp.Quit()
 			}
 		}, StreamStruct.StreamWindow)
@@ -58,15 +56,8 @@ func init() {
 }
 
 func StartMainWindow(backgroundFeed streams.BackgroundStream) {
-
-	// --------- init webcam
-	cap := &streams.CaptureDevice{
-		//DeviceID: 0,
-		//FrameRate: 24.0,
-		//CaptureHeight: 480,
-		//CaptureWidth:  864,
-	}
-
+	cap := &streams.CaptureDevice{}
+	recordStopSig := make(chan bool, 2)
 	streamWriters := &streams.WriterPipeLine{}
 	fyneImg, bgErr := streams.GetNextBackgroundBuffer(backgroundFeed).ToImage()
 
@@ -75,9 +66,7 @@ func StartMainWindow(backgroundFeed streams.BackgroundStream) {
 		//TODO set default background iamge
 	}
 
-	recordStopSig := make(chan bool, 2)
 	// calculate the scaling factor based on the desired maxWidth and the original width
-	// width for canvas
 	maxWidth := 200.0
 	scaleFactor := maxWidth / float64(fyneImg.Bounds().Dx())
 	fyneImage := canvas.NewImageFromImage(fyneImg)
@@ -86,13 +75,9 @@ func StartMainWindow(backgroundFeed streams.BackgroundStream) {
 	fyneImage.FillMode = canvas.ImageFillContain
 
 	recordBtn := widget.NewButton("Record", func() {
-		// TODO need to track recording status
-
 		if !StreamStruct.streamIsRecording {
 			fmt.Println("recording")
-			// --------- init media output dir
 			// TODO
-			// need to add timestamp to output dir to avoid overwrites - need structure: output > day_start > session_id > record_hash_id_count? > [img, mp4, mp4]
 			// fix bug where dir is not found and insta crash on write "./output2" gocv panic
 			currentRecordDir := fmt.Sprintf("%s/%s", defaultOutputDir, time.Now().Format("2006-01-02-150405"))
 			defaultImageSequenceDir := fmt.Sprintf("%s/image_sequence", currentRecordDir)
@@ -102,7 +87,7 @@ func StartMainWindow(backgroundFeed streams.BackgroundStream) {
 				StreamStruct.streamIsRecording = false
 			}
 
-			// todo update button to reflect state
+			// todo update button to reflect state?
 			rawErr, fxErr := streamWriters.OpenWriters(currentRecordDir, cap)
 
 			if rawErr != nil {
@@ -136,6 +121,8 @@ func StartMainWindow(backgroundFeed streams.BackgroundStream) {
 			// init selected camera
 			if cap.Connected {
 				// todo this needs to point to new capture device can't close
+				// this should also be skipped if the selected capture device
+				// is already active
 				cap.CaptureDevice.Close()
 			}
 			if err := cap.InitCaptureDevice(value); err != nil {
