@@ -65,18 +65,13 @@ func StartMainWindow(backgroundFeed streams.BackgroundStream) {
 		fmt.Println("Could Not Aquire Next Frame From Background Stream. Using Default.")
 		//TODO set default background iamge
 	}
-
-	// calculate the scaling factor based on the desired maxWidth and the original width
-	maxWidth := 200.0
-	scaleFactor := maxWidth / float64(fyneImg.Bounds().Dx())
 	fyneImage := canvas.NewImageFromImage(fyneImg)
-	canvasHeight := int(float64(fyneImg.Bounds().Dy()) * scaleFactor)
-	fyneImage.Resize(fyne.NewSize(int(maxWidth), canvasHeight))
+	scaleCanvasToImage(backgroundFeed, fyneImage, 200)
 	fyneImage.FillMode = canvas.ImageFillContain
 
 	recordBtn := widget.NewButton("Record", func() {
 		if !StreamStruct.streamIsRecording {
-			fmt.Println("recording")
+			StreamStruct.recordBtn.SetText("Recording...")
 			// TODO
 			// fix bug where dir is not found and insta crash on write "./output2" gocv panic
 			currentRecordDir := fmt.Sprintf("%s/%s", defaultOutputDir, time.Now().Format("2006-01-02-150405"))
@@ -87,7 +82,6 @@ func StartMainWindow(backgroundFeed streams.BackgroundStream) {
 				StreamStruct.streamIsRecording = false
 			}
 
-			// todo update button to reflect state?
 			rawErr, fxErr := streamWriters.OpenWriters(currentRecordDir, cap)
 
 			if rawErr != nil {
@@ -102,11 +96,7 @@ func StartMainWindow(backgroundFeed streams.BackgroundStream) {
 			StreamStruct.streamIsRecording = true
 
 		} else {
-			// already recording close recorders
-			//todo revert back to normal button
-
-			// todo need to wait for frames to be written button is in thread
-			fmt.Println("recording stopped")
+			StreamStruct.recordBtn.SetText("Record")
 			recordStopSig <- true
 		}
 	})
@@ -139,11 +129,10 @@ func StartMainWindow(backgroundFeed streams.BackgroundStream) {
 	StreamStruct.safelyQuitSignal = make(chan bool)
 
 	// draw canvas
-	StreamStruct.StreamWindow.SetContent(container.NewAdaptiveGrid(1, fyneImage, StreamStruct.captureCombSelect, StreamStruct.recordBtn))
+	StreamStruct.StreamWindow.SetContent(container.NewAdaptiveGrid(1, fyneImage, container.NewVBox(StreamStruct.captureCombSelect, StreamStruct.recordBtn)))
 }
 
 func startCaptureStream(cap *streams.CaptureDevice, backgroundFeed streams.BackgroundStream, streamWriters *streams.WriterPipeLine, fyneImage *canvas.Image, recordStopSig chan bool) {
-	maxWidth := 200.0
 	ticker := time.NewTicker(fpsToMilisecond(cap.FrameRate))
 
 	for StreamStruct.streamIsActive {
@@ -186,10 +175,6 @@ func startCaptureStream(cap *streams.CaptureDevice, backgroundFeed streams.Backg
 			// TODO add fx pipeline
 			// add green screen effect and save mask file
 			streams.AddGreenScreenMask(cap.FrameBuffer, nextBackgroundFrame, &fxImg)
-			canvasImg, _ := fxImg.ToImage()
-
-			// Calculate the scaling factor based on the desired maxWidth and the original width
-			scaleFactor := maxWidth / float64(canvasImg.Bounds().Dx())
 
 			// save images to writer pipeline
 			if StreamStruct.streamIsRecording {
@@ -201,17 +186,35 @@ func startCaptureStream(cap *streams.CaptureDevice, backgroundFeed streams.Backg
 				_ = maskErr
 				//fmt.Println(rawErr, fxErr, maskErr)
 			}
+			newImg, _ := fxImg.ToImage()
 			fxImg.Close()
 
+			scaleCanvasToImage(backgroundFeed, fyneImage, 200)
+
 			// update fyne image canvas
-			fyneImage.Image = canvasImg
-			fyneImage.Resize(fyne.NewSize(int(maxWidth), int(float64(canvasImg.Bounds().Dy())*scaleFactor)))
+			fyneImage.Image = newImg
 			fyneImage.Refresh()
 			StreamStruct.StreamWindow.Content().Refresh()
 		}
 	}
 	streamWriters.CloseWriters()
 	StreamStruct.safelyQuitSignal <- true
+}
+
+// calculate the scaling factor based on the desired maxWidth and the original width
+func scaleCanvasToImage(backgroundFeed streams.BackgroundStream, fyneImage *canvas.Image, maxWidth float64) {
+	// todo need background image
+	fyneImg, bgErr := streams.GetNextBackgroundBuffer(backgroundFeed).ToImage()
+
+	if bgErr != nil {
+		fmt.Println("Could Not Aquire Next Frame From Background Stream. Using Default.")
+		//TODO set default background iamge
+	}
+
+	scaleFactor := maxWidth / float64(fyneImg.Bounds().Dx())
+	canvasHeight := int(float64(fyneImg.Bounds().Dy()) * scaleFactor)
+
+	fyneImage.Resize(fyne.NewSize(int(maxWidth), canvasHeight))
 }
 
 func fpsToMilisecond(fps float64) time.Duration {
