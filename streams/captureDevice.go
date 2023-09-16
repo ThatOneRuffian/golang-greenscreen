@@ -7,6 +7,12 @@ import (
 	"gocv.io/x/gocv"
 )
 
+var AvailableCaptureDevices []string
+
+func init() {
+	AvailableCaptureDevices = enumerateCaptureDevices()
+}
+
 type CaptureDevice struct {
 	DeviceID      int
 	Connected     bool
@@ -21,7 +27,7 @@ type CaptureDevice struct {
 // return camera instance with pointers to current settings
 // or something for UI. need dropdown menu select feed(s)
 func (cap *CaptureDevice) InitCaptureDevice(selectedCaptureDevice string) error {
-	fmt.Printf("Attempting to mount capture device %d...", cap.DeviceID)
+	fmt.Printf("Attempting to mount capture device %s...", selectedCaptureDevice)
 	var capErr error
 	var convErr error
 	decviceId, convErr := strconv.Atoi(selectedCaptureDevice)
@@ -31,6 +37,8 @@ func (cap *CaptureDevice) InitCaptureDevice(selectedCaptureDevice string) error 
 		fmt.Println(capErr)
 		return capErr
 	}
+	cap.Connected = true
+	cap.DeviceID = decviceId
 
 	// set camera's capture settings
 	//cap.CaptureDevice.Set(gocv.VideoCaptureFPS, cap.FrameRate)
@@ -41,12 +49,11 @@ func (cap *CaptureDevice) InitCaptureDevice(selectedCaptureDevice string) error 
 	img := gocv.NewMat()
 	cap.FrameBuffer = &img
 
-	// print camera's current settings
+	// init camera's current settings
 	cap.CaptureWidth = int(cap.CaptureDevice.Get(gocv.VideoCaptureFrameWidth))
 	cap.CaptureHeight = int(cap.CaptureDevice.Get(gocv.VideoCaptureFrameHeight))
 	cap.FrameRate = float64(cap.CaptureDevice.Get(gocv.VideoCaptureFPS))
 	fmt.Println(cap.CaptureWidth, cap.CaptureHeight, cap.FrameRate)
-	cap.Connected = true
 
 	return nil
 }
@@ -65,4 +72,22 @@ func (cap *CaptureDevice) NextFrame() bool {
 		return true
 	}
 	return false
+}
+
+func enumerateCaptureDevices() []string {
+	var discoveredDevices []string
+	for i := 0; i < 10; i++ {
+		webcam, err := gocv.OpenVideoCapture(i)
+		if err != nil {
+			fmt.Printf("Error Opening Capture Device %d During Enumeration: %s\n", i, err)
+			continue
+		} else if !webcam.IsOpened() {
+			fmt.Println("Device in use. Need to update GUI on this")
+			continue
+		}
+		discoveredDevices = append(discoveredDevices, fmt.Sprintf("%d", i))
+		fmt.Printf("Found capture device at index %d\n", i)
+		webcam.Close()
+	}
+	return discoveredDevices
 }

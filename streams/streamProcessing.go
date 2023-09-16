@@ -7,12 +7,6 @@ import (
 	"gocv.io/x/gocv"
 )
 
-var AvailableCaptureDevices []string
-
-func init() {
-	AvailableCaptureDevices = enumerateCaptureDevices()
-}
-
 var canvasSize = 0
 
 // Define the lower and upper bounds chroma key for the green color in HSV
@@ -154,22 +148,4 @@ func AddGreenScreenMask(sourceImage *gocv.Mat, newBackground *gocv.Mat, result *
 
 	// Combine the masked source image and the masked background for final fx
 	gocv.Add(sourceMasked, backgroundMasked, result)
-}
-
-func enumerateCaptureDevices() []string {
-	var discoveredDevices []string
-	for i := 0; i < 10; i++ {
-		webcam, err := gocv.OpenVideoCapture(i)
-		if err != nil {
-			fmt.Printf("Error Opening Capture Device %d During Enumeration: %s\n", i, err)
-			continue
-		} else if !webcam.IsOpened() {
-			fmt.Println("Device in use. Need to update GUI on this")
-			continue
-		}
-		discoveredDevices = append(discoveredDevices, fmt.Sprintf("%d", i))
-		fmt.Printf("Found capture device at index %d\n", i)
-		webcam.Close()
-	}
-	return discoveredDevices
 }
