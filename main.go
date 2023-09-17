@@ -17,7 +17,7 @@ func main() {
 
 	// --------- Load the background image
 	backgroundImage := &streams.InputImage{
-		SourceFile:  "./background.jpg",
+		SourceFile:  "./resources/default_background.jpg",
 		FrameBuffer: new(gocv.Mat),
 	}
 	defer backgroundImage.FrameBuffer.Close()
@@ -41,7 +41,7 @@ func main() {
 
 	// -------------- run fyne app
 	// app loop for video rendering
-	window.StartMainWindow(backgroundVideo)
+	window.StartMainWindow(backgroundImage)
 
 	window.StreamStruct.StreamWindow.ShowAndRun()
 }

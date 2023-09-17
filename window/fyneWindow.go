@@ -7,12 +7,15 @@ import (
 	"log"
 	"time"
 
-	"fyne.io/fyne"
-	"fyne.io/fyne/app"
-	"fyne.io/fyne/canvas"
-	"fyne.io/fyne/container"
-	"fyne.io/fyne/dialog"
-	"fyne.io/fyne/widget"
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
+	"fyne.io/fyne/v2/widget"
+
 	"gocv.io/x/gocv"
 )
 
@@ -39,7 +42,8 @@ func init() {
 	StreamStruct = &appStruct{}
 	StreamStruct.StreamApp = app.New()
 	StreamStruct.StreamWindow = StreamStruct.StreamApp.NewWindow("Stream")
-
+	StreamStruct.StreamWindow.Resize(fyne.NewSize(800, 600))
+	StreamStruct.StreamApp.Settings().SetTheme(theme.DarkTheme())
 	// set on exit dialog and cleanup
 	StreamStruct.StreamWindow.SetCloseIntercept(func() {
 		confirmation := dialog.NewConfirm("Confirmation", "Are You Sure You Want to Exit?", func(response bool) {
@@ -66,9 +70,9 @@ func StartMainWindow(backgroundFeed streams.BackgroundStream) {
 		//TODO set default background iamge
 	}
 	fyneImage := canvas.NewImageFromImage(fyneImg)
-	scaleCanvasToImage(backgroundFeed, fyneImage, 200)
 	fyneImage.FillMode = canvas.ImageFillContain
 
+	// create capture buttons
 	recordBtn := widget.NewButton("Record", func() {
 		if !StreamStruct.streamIsRecording {
 			StreamStruct.recordBtn.SetText("Recording...")
@@ -96,10 +100,16 @@ func StartMainWindow(backgroundFeed streams.BackgroundStream) {
 			StreamStruct.streamIsRecording = true
 
 		} else {
-			StreamStruct.recordBtn.SetText("Record")
-			recordStopSig <- true
+			recordStopConfirm := dialog.NewConfirm("Confirmation", "Are You Sure You Want to Stop Recording?", func(response bool) {
+				if response {
+					StreamStruct.recordBtn.SetText("Record")
+					recordStopSig <- true
+				}
+			}, StreamStruct.StreamWindow)
+			recordStopConfirm.Show()
 		}
 	})
+
 	recordBtn.Disable()
 
 	capCombo := widget.NewSelect(streams.AvailableCaptureDevices, func(value string) {
@@ -128,8 +138,20 @@ func StartMainWindow(backgroundFeed streams.BackgroundStream) {
 	StreamStruct.captureCombSelect = capCombo
 	StreamStruct.safelyQuitSignal = make(chan bool)
 
-	// draw canvas
-	StreamStruct.StreamWindow.SetContent(container.NewAdaptiveGrid(1, fyneImage, container.NewVBox(StreamStruct.captureCombSelect, StreamStruct.recordBtn)))
+	// creation application menu
+	fileMenu := fyne.NewMainMenu(fyne.NewMenu("File", fyne.NewMenuItem("File", func() { fmt.Println("test") })))
+	// setup application tabs
+	tabs := container.NewAppTabs(
+		container.NewTabItem("Chroma Key", container.NewAdaptiveGrid(1, fyneImage)),
+		container.NewTabItem("Pose Detection", widget.NewLabel("WIP")),
+	)
+
+	tabs.SetTabLocation(container.TabLocationTop)
+
+	// draw window
+	StreamStruct.StreamWindow.SetMainMenu(fileMenu)
+
+	StreamStruct.StreamWindow.SetContent(container.NewAdaptiveGrid(1, tabs, container.NewVBox(layout.NewSpacer(), container.NewVBox(widget.NewLabel("Select Capture Device:"), StreamStruct.captureCombSelect, StreamStruct.recordBtn))))
 }
 
 func startCaptureStream(cap *streams.CaptureDevice, backgroundFeed streams.BackgroundStream, streamWriters *streams.WriterPipeLine, fyneImage *canvas.Image, recordStopSig chan bool) {
@@ -189,8 +211,6 @@ func startCaptureStream(cap *streams.CaptureDevice, backgroundFeed streams.Backg
 			newImg, _ := fxImg.ToImage()
 			fxImg.Close()
 
-			scaleCanvasToImage(backgroundFeed, fyneImage, 200)
-
 			// update fyne image canvas
 			fyneImage.Image = newImg
 			fyneImage.Refresh()
@@ -199,22 +219,6 @@ func startCaptureStream(cap *streams.CaptureDevice, backgroundFeed streams.Backg
 	}
 	streamWriters.CloseWriters()
 	StreamStruct.safelyQuitSignal <- true
-}
-
-// calculate the scaling factor based on the desired maxWidth and the original width
-func scaleCanvasToImage(backgroundFeed streams.BackgroundStream, fyneImage *canvas.Image, maxWidth float64) {
-	// todo need background image
-	fyneImg, bgErr := streams.GetNextBackgroundBuffer(backgroundFeed).ToImage()
-
-	if bgErr != nil {
-		fmt.Println("Could Not Aquire Next Frame From Background Stream. Using Default.")
-		//TODO set default background iamge
-	}
-
-	scaleFactor := maxWidth / float64(fyneImg.Bounds().Dx())
-	canvasHeight := int(float64(fyneImg.Bounds().Dy()) * scaleFactor)
-
-	fyneImage.Resize(fyne.NewSize(int(maxWidth), canvasHeight))
 }
 
 func fpsToMilisecond(fps float64) time.Duration {

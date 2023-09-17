@@ -81,4 +81,5 @@ func (writers *WriterPipeLine) CloseWriters() {
 	if writers.RawStreamWriter != nil {
 		writers.RawStreamWriter.Close()
 	}
+	fmt.Println("File Streams Closed Successfully.")
 }
