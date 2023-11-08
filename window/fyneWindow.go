@@ -143,7 +143,7 @@ func StartMainWindow(backgroundFeed streams.BackgroundStream) {
 	// setup application tabs
 	tabs := container.NewAppTabs(
 		container.NewTabItem("Chroma Key", container.NewAdaptiveGrid(1, fyneImage)),
-		container.NewTabItem("Pose Detection", widget.NewLabel("WIP")),
+		container.NewTabItem("Pose Detection", container.NewAdaptiveGrid(1, fyneImage)),
 	)
 
 	tabs.SetTabLocation(container.TabLocationTop)
